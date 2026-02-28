@@ -4,6 +4,18 @@ This project demonstrates **Goal-Oriented Action Planning (GOAP)** by simulating
 
 GOAP belongs to the broader field of **dynamic programming** and **automated planning**: it decomposes a complex problem into a sequence of simpler decisions, reusing partial solutions (via the best-cost map) to avoid redundant work. Originally designed for video-game AI (F.E.A.R., 2005), the underlying ideas — symbolic planning over a world state, precondition/effect pairs, and heuristic-guided search — apply to any domain where an agent must reason about multi-step plans.
 
+## 📖 Project Evolution
+
+This project evolved through three phases:
+
+1. **Testing GOAP** — The initial goal was to understand how GOAP works by implementing a simple millionaire simulation in C++ (`WealthPlanner.cpp`).
+
+2. **Modeling in PDDL** — Once the C++ implementation worked, the next step was to express the same domain in PDDL 2.1 (`domain.pddl`, `problem.pddl`) to see how the problem translates into a standard planning language.
+
+3. **Building a custom PDDL parser** — Rather than relying on external solvers, a custom PDDL parser and A\* planner was built from scratch in the `pddl_parser/` directory.
+
+**Note on performance:** The C++ implementation uses a domain-specific admissible heuristic that estimates the minimum number of actions needed based on remaining money and health. The PDDL parser currently uses a simpler goal-counting heuristic. This explains the difference in iteration counts (~20k for C++ vs ~44k for PDDL) despite both finding valid plans.
+
 ## 🧠 How GOAP works
 
 There are many videos available on Youtube.
@@ -82,6 +94,36 @@ Where:
 
 > **Warning:** using `h_money + h_health` (sum) would **not** be admissible because the same action can never satisfy both sub-goals at once — but there is no guarantee the costs are independent enough for summing to remain a lower bound in all states.
 
+## 🔍 A* Algorithm Flow
+
+The following diagram illustrates the A* search algorithm used by the planner:
+
+```mermaid
+flowchart TD
+    Start["Initial state s₀"] --> Init["Push s₀ to priority queue<br/>with g=0, f=h(s₀)"]
+    Init --> Loop{Priority queue<br/>empty?}
+    Loop -->|No| Pop["Pop node with lowest f"]
+    Pop --> GoalCheck{Goal reached?}
+    GoalCheck -->|Yes| Return[Return optimal plan]
+    GoalCheck -->|No| Visited{Already visited<br/>with lower g?}
+    Visited -->|Yes| Loop
+    Visited -->|No| Mark["Mark state visited<br/>with cost g"]
+    Mark --> Expand[For each action]
+    Expand --> Applicable{Preconditions<br/>satisfied?}
+    Applicable -->|No| Expand
+    Applicable -->|Yes| Apply["Apply effect → new state s'"]
+    Apply --> Compute["g' = g + action.cost<br/>f' = g' + h(s')"]
+    Compute --> Push["Push s' to priority queue"]
+    Push --> Expand
+    Expand -->|Done| Loop
+    Loop -->|Yes| Fail[No plan found]
+```
+
+Where:
+- **g** = real cost (number of actions) from initial state to current state
+- **h(s)** = heuristic estimate of remaining cost to goal (must never overestimate)
+- **f = g + h(s)** = estimated total cost, used to order the priority queue
+
 ## 📄 PDDL Formulation
 
 The same problem can be expressed in the Planning Domain Definition Language (PDDL). Below are domain and problem files adapted to match the C++ implementation.
@@ -119,7 +161,10 @@ The same problem can be expressed in the Planning Domain Definition Language (PD
   (:action sleep
     :parameters (?a - agent)
     :precondition (< (health ?a) 80)
-    :effect (increase (health ?a) 20)
+    :effect (and
+      (when (<= (health ?a) 80) (increase (health ?a) 20))
+      (when (>  (health ?a) 80) (assign (health ?a) 100))
+    )
   )
 
   (:action vacation
@@ -131,18 +176,16 @@ The same problem can be expressed in the Planning Domain Definition Language (PD
     )
     :effect (and
       (decrease (money  ?a) 10000)
-      (increase (health ?a) 60)
-      (assign   (hours  ?a) 0)
+      (when (<= (health ?a) 40) (increase (health ?a) 60))
+      (when (>  (health ?a) 40) (assign (health ?a) 100))
+      (increase (hours  ?a) 24)
       (not (week-done ?a))
     )
   )
 
   (:action join-startup
     :parameters (?a - agent)
-    :precondition (and
-      (not (has-company ?a))
-      (has-licence ?a)
-    )
+    :precondition (has-licence ?a)
     :effect (and
       (has-company    ?a)
       (joined-startup ?a)
@@ -151,10 +194,7 @@ The same problem can be expressed in the Planning Domain Definition Language (PD
 
   (:action join-megacorp
     :parameters (?a - agent)
-    :precondition (and
-      (not (has-company ?a))
-      (has-master ?a)
-    )
+    :precondition (has-master ?a)
     :effect (and
       (has-company     ?a)
       (joined-megacorp ?a)
@@ -228,6 +268,7 @@ The same problem can be expressed in the Planning Domain Definition Language (PD
       (has-licence      ?a)
       (decrease (money  ?a) 5000)
       (decrease (health ?a) 25)
+      (increase (hours  ?a) 320)
     )
   )
 
@@ -242,6 +283,7 @@ The same problem can be expressed in the Planning Domain Definition Language (PD
       (has-master       ?a)
       (decrease (money  ?a) 20000)
       (decrease (health ?a) 35)
+      (increase (hours  ?a) 480)
     )
   )
 )
@@ -275,12 +317,29 @@ The same problem can be expressed in the Planning Domain Definition Language (PD
 
 ## 🛠️ Build & Run
 
+### C++ Implementation
+
 ```bash
 g++ -std=c++20 -O2 -o WealthPlanner WealthPlanner.cpp
 ./WealthPlanner
 ```
 
-## 📊 Sample Outputs
+### PDDL Parser & Solver
+
+```bash
+cd pddl_parser
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+./build/pddl_parser -d ../domain.pddl -p ../problem.pddl
+```
+
+Options:
+- `-d <file>` : Domain PDDL file
+- `-p <file>` : Problem PDDL file
+- `-v` : Verbose mode (debug output)
+- `-h` : Help
+
+## 📊 Sample Outputs (from the C++ Implementation)
 
 ```bash
 ╔══════════════════════════════════════════════════════╗
