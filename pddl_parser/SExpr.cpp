@@ -1,13 +1,15 @@
 #include "SExpr.hpp"
 
-namespace pddl::parser {
+namespace pddl::parser
+{
 
+//---------------------------------------------------------------------------------------------------------------------
 bool tagged(const SExpr& e, const std::string& tag)
 {
-    return !e.is_atom && !e.children.empty() && e.children[0].is_atom &&
-           e.children[0].atom == tag;
+    return !e.is_atom && !e.children.empty() && e.children[0].is_atom && e.children[0].atom == tag;
 }
 
+//---------------------------------------------------------------------------------------------------------------------
 SExpr parse_sexpr(Lexer& lex)
 {
     auto tok = next_token(lex);

@@ -8,26 +8,28 @@
 namespace pddl::solver
 {
 
+/// *****************************************************************************
 /// An instantiated (ground) action with no variables.
 /// Pure data structure mirroring WealthPlanner's Action.
+/// *****************************************************************************
 struct GroundAction
 {
-    std::string name; ///< e.g. "work-startup(alice)"
-    int cost = 1;
+    std::string name;                             ///< e.g. "work-startup(alice)"
+    int cost = 1;                                 ///< Cost of the action.
     std::vector<parser::Predicate> preconditions; ///< Instantiated preconditions.
     std::vector<parser::Effect> effects;          ///< Instantiated effects.
 };
 
+/// *****************************************************************************
 /// Configuration for the A* planner.
+/// *****************************************************************************
 struct PlannerConfig
 {
-    size_t max_iterations = 500'000;
-    int fluent_bucket_size = 10; ///< Granularity for state hashing (0 = exact).
-    bool verbose = false;        ///< Print debug info during search.
+    size_t max_iterations = 500'000; ///< Maximum number of iterations.
+    int fluent_bucket_size = 10;     ///< Granularity for state hashing (0 = exact).
+    bool verbose = false;            ///< Print debug info during search.
     /// Custom heuristic (nullptr = default goal-count heuristic).
-    std::function<float(const parser::WorldState&,
-                        const std::vector<parser::Predicate>&)>
-        heuristic = nullptr;
+    std::function<float(const parser::WorldState&, const std::vector<parser::Predicate>&)> heuristic = nullptr;
 };
 
 /// Result of the A* planning search.
@@ -53,16 +55,13 @@ public:
 
     /// Instantiate all domain actions with concrete objects from the problem.
     /// @return One GroundAction per (action, object-combination).
-    static std::vector<GroundAction> instantiate_actions(const parser::Domain& d,
-                                                         const parser::Problem& p);
+    static std::vector<GroundAction> instantiate_actions(const parser::Domain& d, const parser::Problem& p);
 
     /// Check if all preconditions of an action hold in the given state.
-    static bool is_applicable(const GroundAction& action,
-                              const parser::WorldState& ws);
+    static bool is_applicable(const GroundAction& action, const parser::WorldState& ws);
 
     /// Apply all effects of an action and return the resulting state.
-    static parser::WorldState apply_action(const GroundAction& action,
-                                           parser::WorldState ws);
+    static parser::WorldState apply_action(const GroundAction& action, parser::WorldState ws);
 
     /// Find an optimal plan using A* search.
     /// @param initial  Starting world state.

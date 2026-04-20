@@ -6,11 +6,10 @@
 namespace pddl::parser
 {
 
-[[noreturn]] void
-lexer_error(const Lexer& lex, int err_line, const std::string& msg)
+[[noreturn]] void lexer_error(Lexer const& lex, size_t err_line, std::string const& msg)
 {
     throw std::runtime_error(
-        std::format("{}:{}: {}", lex.filename, err_line, msg));
+        std::format("{}:{}: {}", lex.filename.string(), err_line, msg));
 }
 
 static void skip_ws(Lexer& lex)
@@ -29,10 +28,14 @@ static void skip_ws(Lexer& lex)
         else if (lex.src[lex.pos] == ';')
         {
             while (lex.pos < lex.src.size() && lex.src[lex.pos] != '\n')
+            {
                 ++lex.pos;
+            }
         }
         else
+        {
             break;
+        }
     }
 }
 
@@ -40,24 +43,28 @@ Token next_token(Lexer& lex)
 {
     skip_ws(lex);
     if (lex.pos >= lex.src.size())
+    {
         return { "", lex.line };
-
-    int tok_line = lex.line;
+    }
+    size_t tok_line = lex.line;
     if (lex.src[lex.pos] == '(' || lex.src[lex.pos] == ')')
+    {
         return { std::string(1, lex.src[lex.pos++]), tok_line };
+    }
 
     size_t start = lex.pos;
-    while (lex.pos < lex.src.size() &&
-           !std::isspace(static_cast<unsigned char>(lex.src[lex.pos])) &&
+    while (lex.pos < lex.src.size() && !std::isspace(static_cast<unsigned char>(lex.src[lex.pos])) &&
            lex.src[lex.pos] != '(' && lex.src[lex.pos] != ')')
+    {
         ++lex.pos;
+    }
     return { std::string(lex.src.substr(start, lex.pos - start)), tok_line };
 }
 
 Token peek_token(Lexer& lex)
 {
     size_t save_pos = lex.pos;
-    int save_line = lex.line;
+    size_t save_line = lex.line;
     auto t = next_token(lex);
     lex.pos = save_pos;
     lex.line = save_line;

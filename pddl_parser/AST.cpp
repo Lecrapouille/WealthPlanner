@@ -4,68 +4,87 @@
 #include <algorithm>
 #include <cctype>
 
-namespace pddl::parser {
+namespace pddl::parser
+{
 
-// ── Internal helpers for numeric evaluation ──────────────────────────
-
-static bool is_number(const std::string& s)
+//---------------------------------------------------------------------------------------------------------------------
+static bool is_number(std::string const& s)
 {
     if (s.empty())
+    {
         return false;
+    }
     size_t start = (s[0] == '-') ? 1 : 0;
     if (start >= s.size())
+    {
         return false;
+    }
     for (size_t i = start; i < s.size(); ++i)
+    {
         if (!std::isdigit(static_cast<unsigned char>(s[i])))
+        {
             return false;
+        }
+    }
     return true;
 }
 
-static std::string make_fluent_key(const std::string& func_name,
-                                   const std::vector<std::string>& args)
+//---------------------------------------------------------------------------------------------------------------------
+static std::string make_fluent_key(std::string const& func_name, std::vector<std::string> const& args)
 {
     std::string key = func_name + "(";
     for (size_t i = 0; i < args.size(); ++i)
     {
         if (i > 0)
+        {
             key += ",";
+        }
         key += args[i];
     }
     key += ")";
     return key;
 }
 
-static int eval_numeric(const WorldState& ws, const std::string& expr)
+//---------------------------------------------------------------------------------------------------------------------
+static int eval_numeric(WorldState const& ws, std::string const& expr)
 {
     if (is_number(expr))
+    {
         return std::stoi(expr);
+    }
 
     if (expr.empty() || expr[0] != '(')
+    {
         return 0;
+    }
 
     Lexer lex{ expr, "<eval>" };
     auto sexpr = parse_sexpr(lex);
 
     if (sexpr.is_atom || sexpr.children.empty())
+    {
         return 0;
+    }
 
     std::string func = sexpr.children[0].atom;
     std::vector<std::string> args;
     for (size_t i = 1; i < sexpr.children.size(); ++i)
+    {
         args.push_back(sexpr.children[i].atom);
+    }
 
     return ws.get_fluent(make_fluent_key(func, args));
 }
 
-// ── WorldState methods ───────────────────────────────────────────────
-
-bool WorldState::holds(const std::string& pred_name,
-                       const std::vector<std::string>& args) const
+//---------------------------------------------------------------------------------------------------------------------
+bool WorldState::holds(std::string const& pred_name, std::vector<std::string> const& args) const
 {
-    for (const auto& f : facts_)
+    for (const auto& f : m_facts)
     {
         if (f.name != pred_name || f.args.size() != args.size())
+        {
             continue;
+        }
         bool match = true;
         for (size_t i = 0; i < args.size(); ++i)
         {
@@ -76,44 +95,39 @@ bool WorldState::holds(const std::string& pred_name,
             }
         }
         if (match)
+        {
             return true;
+        }
     }
     return false;
 }
 
-void WorldState::add(const Predicate& p)
+//---------------------------------------------------------------------------------------------------------------------
+void WorldState::add(Predicate const& p)
 {
     if (!holds(p.name, to_names(p.args)))
-        facts_.push_back(p);
+    {
+        m_facts.push_back(p);
+    }
 }
 
-void WorldState::remove(const std::string& pred_name,
-                        const std::vector<std::string>& args)
+//---------------------------------------------------------------------------------------------------------------------
+void WorldState::remove(std::string const& pred_name, std::vector<std::string> const& args)
 {
-    std::erase_if(facts_,
-                   [&](const Predicate& f)
-                   {
-                       if (f.name != pred_name ||
-                           f.args.size() != args.size())
-                           return false;
-                       for (size_t i = 0; i < args.size(); ++i)
-                           if (f.args[i].name != args[i])
-                               return false;
-                       return true;
-                   });
+    std::erase_if(m_facts,
+                  [&](const Predicate& f)
+                  {
+                      if (f.name != pred_name || f.args.size() != args.size())
+                          return false;
+                      for (size_t i = 0; i < args.size(); ++i)
+                          if (f.args[i].name != args[i])
+                              return false;
+                      return true;
+                  });
 }
 
-const std::vector<Predicate>& WorldState::get_facts() const
-{
-    return facts_;
-}
-
-size_t WorldState::fact_count() const
-{
-    return facts_.size();
-}
-
-std::vector<std::string> WorldState::to_names(const std::vector<Term>& terms)
+//---------------------------------------------------------------------------------------------------------------------
+std::vector<std::string> WorldState::to_names(std::vector<Term> const& terms)
 {
     std::vector<std::string> names;
     names.reserve(terms.size());
@@ -122,34 +136,33 @@ std::vector<std::string> WorldState::to_names(const std::vector<Term>& terms)
     return names;
 }
 
-int WorldState::get_fluent(const std::string& key) const
+//---------------------------------------------------------------------------------------------------------------------
+int WorldState::get_fluent(std::string const& key) const
 {
-    auto it = fluents_.find(key);
-    return (it != fluents_.end()) ? it->second : 0;
+    auto it = m_fluents.find(key);
+    return (it != m_fluents.end()) ? it->second : 0;
 }
 
-void WorldState::set_fluent(const std::string& key, int val)
+//---------------------------------------------------------------------------------------------------------------------
+void WorldState::set_fluent(std::string const& key, int val)
 {
-    fluents_[key] = val;
+    m_fluents[key] = val;
 }
 
-bool WorldState::has_fluent(const std::string& key) const
+//---------------------------------------------------------------------------------------------------------------------
+bool WorldState::has_fluent(std::string const& key) const
 {
-    return fluents_.find(key) != fluents_.end();
+    return m_fluents.find(key) != m_fluents.end();
 }
 
-const std::unordered_map<std::string, int>& WorldState::get_fluents() const
+//---------------------------------------------------------------------------------------------------------------------
+bool WorldState::operator==(WorldState const& other) const
 {
-    return fluents_;
-}
-
-bool WorldState::operator==(const WorldState& other) const
-{
-    if (fluents_ != other.fluents_)
+    if (m_fluents != other.m_fluents)
         return false;
-    if (facts_.size() != other.facts_.size())
+    if (m_facts.size() != other.m_facts.size())
         return false;
-    for (const auto& f : facts_)
+    for (const auto& f : m_facts)
     {
         if (!other.holds(f.name, to_names(f.args)))
             return false;
@@ -157,7 +170,8 @@ bool WorldState::operator==(const WorldState& other) const
     return true;
 }
 
-bool WorldState::evaluates(const Predicate& p) const
+//---------------------------------------------------------------------------------------------------------------------
+bool WorldState::evaluates(Predicate const& p) const
 {
     const std::string& name = p.name;
 
@@ -201,6 +215,7 @@ bool WorldState::evaluates(const Predicate& p) const
     return holds(name, to_names(p.args));
 }
 
+//---------------------------------------------------------------------------------------------------------------------
 bool WorldState::is_goal_reached(const std::vector<Predicate>& goals) const
 {
     for (const auto& g : goals)

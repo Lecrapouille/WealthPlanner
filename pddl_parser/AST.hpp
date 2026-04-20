@@ -1,6 +1,10 @@
+/// ****************************************************************************
 /// @file AST.hpp
 /// Abstract syntax tree types for a parsed PDDL domain and problem.
+/// ****************************************************************************
+
 #pragma once
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -8,51 +12,55 @@
 namespace pddl::parser
 {
 
+/// *****************************************************************************
 /// A term is either a variable (?x) or a constant (block-a).
+/// *****************************************************************************
 struct Term
 {
-    std::string
-        name; ///< Term text. For sub-expressions it may be a serialized S-expr.
+    std::string name;         ///< Term text. For sub-expressions it may be a serialized S-expr.
     bool is_variable = false; ///< True if the term starts with '?'.
 };
 
+/// *****************************************************************************
 /// A predicate application, e.g. @c (on ?x ?y) or @c (>= (money ?a) 10000).
+/// *****************************************************************************
 struct Predicate
 {
-    std::string
-        name; ///< Predicate or operator name (e.g. "on", ">=", "increase").
-    std::vector<Term> args; ///< Arguments (variables, constants, or serialized
-                            ///< sub-expressions).
-    int line = 0;           ///< Source line for error reporting.
+    std::string name;       ///< Predicate or operator name (e.g. "on", ">=", "increase").
+    std::vector<Term> args; ///< Arguments (variables, constants, or serialized sub-expressions).
+    size_t line = 0;        ///< Source line for error reporting.
 };
 
-/// A single effect entry — either adds or deletes a predicate.
+/// *****************************************************************************
+/// A single effect entry: either adds or deletes a predicate.
+/// *****************************************************************************
 struct Effect
 {
-    bool is_negated =
-        false;           ///< True when wrapped in @c (not ...), meaning delete.
-    Predicate predicate; ///< The predicate being added or removed.
+    bool is_negated = false; ///< True when wrapped in @c (not ...), meaning delete.
+    Predicate predicate;     ///< The predicate being added or removed.
 };
 
+/// *****************************************************************************
 /// A PDDL action with preconditions and effects.
 ///
 /// Mirrors the structure used by GOAP-style planners: name, cost,
 /// a conjunction of preconditions, and a list of effects.
+/// *****************************************************************************
 struct Action
 {
-    std::string name; ///< Action identifier (e.g. "work-megacorp").
-    int cost = 1;     ///< Planner cost (lower is preferred).
-    std::vector<Term>
-        parameters; ///< Typed parameters (types are currently ignored).
-    std::vector<Predicate>
-        preconditions;           ///< Conjunction of required predicates.
-    std::vector<Effect> effects; ///< Resulting add/delete effects.
-    int line = 0;                ///< Source line for error reporting.
+    std::string name;                     ///< Action identifier (e.g. "work-megacorp").
+    int cost = 1;                         ///< Planner cost (lower is preferred).
+    std::vector<Term> parameters;         ///< Typed parameters (types are currently ignored).
+    std::vector<Predicate> preconditions; ///< Conjunction of required predicates.
+    std::vector<Effect> effects;          ///< Resulting add/delete effects.
+    size_t line = 0;                      ///< Source line for error reporting.
 };
 
+/// *****************************************************************************
 /// A set of ground (variable-free) predicates representing the world.
 ///
 /// Encapsulates fact storage and provides query/mutation operations.
+/// *****************************************************************************
 class WorldState
 {
 public:
@@ -61,77 +69,88 @@ public:
     /// @param pred_name  Predicate name to look for.
     /// @param args       Expected argument names (must match exactly).
     /// @return True if the fact is present.
-    bool holds(const std::string& pred_name,
-               const std::vector<std::string>& args) const;
+    bool holds(std::string const& pred_name, std::vector<std::string> const& args) const;
 
     /// Add a predicate to the state (no-op if already present).
     void add(const Predicate& p);
 
     /// Remove all matching facts from the state.
-    void remove(const std::string& pred_name,
-                const std::vector<std::string>& args);
+    void remove(std::string const& pred_name, std::vector<std::string> const& args);
 
     /// Read-only access to the internal fact list.
-    const std::vector<Predicate>& get_facts() const;
+    std::vector<Predicate> const& get_facts() const
+    {
+        return m_facts;
+    }
 
     /// Number of facts currently stored.
-    size_t fact_count() const;
+    size_t fact_count() const
+    {
+        return m_facts.size();
+    }
 
     /// Get a numeric fluent value (returns 0 if not set).
     /// @param key  Fluent key, e.g. "money(alice)".
-    int get_fluent(const std::string& key) const;
+    int get_fluent(std::string const& key) const;
 
     /// Set a numeric fluent value.
     /// @param key  Fluent key, e.g. "money(alice)".
     /// @param val  The value to assign.
-    void set_fluent(const std::string& key, int val);
+    void set_fluent(std::string const& key, int val);
 
     /// Check whether a fluent exists.
-    bool has_fluent(const std::string& key) const;
+    bool has_fluent(std::string const& key) const;
 
     /// Read-only access to all fluents.
-    const std::unordered_map<std::string, int>& get_fluents() const;
+    std::unordered_map<std::string, int> const& get_fluents() const
+    {
+        return m_fluents;
+    }
 
     /// Equality comparison (needed for planner visited set).
-    bool operator==(const WorldState& other) const;
+    bool operator==(WorldState const& other) const;
 
     /// Evaluate a single predicate (handles boolean facts and numeric comparisons).
     /// @param p  The predicate to evaluate.
     /// @return True if the predicate holds in this state.
-    bool evaluates(const Predicate& p) const;
+    bool evaluates(Predicate const& p) const;
 
     /// Check whether all goal predicates are satisfied.
     /// @param goals  Conjunction of goal predicates.
     /// @return True if all goals are met.
-    bool is_goal_reached(const std::vector<Predicate>& goals) const;
+    bool is_goal_reached(std::vector<Predicate> const& goals) const;
 
 private:
 
-    std::vector<Predicate> facts_;
-    std::unordered_map<std::string, int> fluents_;
-
     static std::vector<std::string> to_names(const std::vector<Term>& terms);
+
+private:
+
+    std::vector<Predicate> m_facts;
+    std::unordered_map<std::string, int> m_fluents;
 };
 
+/// *****************************************************************************
 /// A parsed PDDL domain: name, requirements, predicate signatures, and actions.
+/// *****************************************************************************
 struct Domain
 {
-    std::string name; ///< Domain name from @c (domain ...).
-    std::vector<std::string>
-        requirements; ///< PDDL requirement flags (e.g. ":typing").
-    std::vector<Predicate> predicates; ///< Declared predicate signatures.
-    std::vector<Action> actions;       ///< All action definitions.
+    std::string name;                      ///< Domain name from @c (domain ...).
+    std::vector<std::string> requirements; ///< PDDL requirement flags (e.g. ":typing").
+    std::vector<Predicate> predicates;     ///< Declared predicate signatures.
+    std::vector<Action> actions;           ///< All action definitions.
 };
 
+/// *****************************************************************************
 /// A parsed PDDL problem: initial state, objects, and goal.
+/// *****************************************************************************
 struct Problem
 {
-    std::string name;        ///< Problem name from @c (problem ...).
-    std::string domain_name; ///< Referenced domain name.
-    std::vector<std::string>
-        objects;     ///< Declared objects (types currently ignored).
-    WorldState init; ///< Initial world state.
-    std::vector<Predicate> goal; ///< Goal as a conjunction of predicates.
+    std::string name;                 ///< Problem name from @c (problem ...).
+    std::string domain_name;          ///< Referenced domain name.
+    std::vector<std::string> objects; ///< Declared objects (types currently ignored).
+    WorldState init;                  ///< Initial world state.
+    std::vector<Predicate> goal;      ///< Goal as a conjunction of predicates.
 };
 
 } // namespace pddl::parser
