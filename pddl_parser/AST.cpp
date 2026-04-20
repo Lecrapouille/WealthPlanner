@@ -1,79 +1,30 @@
 #include "AST.hpp"
-#include "Lexer.hpp"
-#include "SExpr.hpp"
-#include <algorithm>
-#include <cctype>
 
 namespace pddl::parser
 {
 
 //---------------------------------------------------------------------------------------------------------------------
-static bool is_number(std::string const& s)
+std::string FluentRef::key() const
 {
-    if (s.empty())
-    {
-        return false;
-    }
-    size_t start = (s[0] == '-') ? 1 : 0;
-    if (start >= s.size())
-    {
-        return false;
-    }
-    for (size_t i = start; i < s.size(); ++i)
-    {
-        if (!std::isdigit(static_cast<unsigned char>(s[i])))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-//---------------------------------------------------------------------------------------------------------------------
-static std::string make_fluent_key(std::string const& func_name, std::vector<std::string> const& args)
-{
-    std::string key = func_name + "(";
+    std::string k = func + "(";
     for (size_t i = 0; i < args.size(); ++i)
     {
         if (i > 0)
-        {
-            key += ",";
-        }
-        key += args[i];
+            k += ",";
+        k += args[i];
     }
-    key += ")";
-    return key;
+    k += ")";
+    return k;
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-static int eval_numeric(WorldState const& ws, std::string const& expr)
+double eval_numeric(WorldState const& ws, Term const& t)
 {
-    if (is_number(expr))
-    {
-        return std::stoi(expr);
-    }
-
-    if (expr.empty() || expr[0] != '(')
-    {
-        return 0;
-    }
-
-    Lexer lex{ expr, "<eval>" };
-    auto sexpr = parse_sexpr(lex);
-
-    if (sexpr.is_atom || sexpr.children.empty())
-    {
-        return 0;
-    }
-
-    std::string func = sexpr.children[0].atom;
-    std::vector<std::string> args;
-    for (size_t i = 1; i < sexpr.children.size(); ++i)
-    {
-        args.push_back(sexpr.children[i].atom);
-    }
-
-    return ws.get_fluent(make_fluent_key(func, args));
+    if (const double* d = std::get_if<double>(&t.numeric))
+        return *d;
+    if (const FluentRef* ref = std::get_if<FluentRef>(&t.numeric))
+        return ws.get_fluent(ref->key());
+    return 0.0;
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -137,14 +88,14 @@ std::vector<std::string> WorldState::to_names(std::vector<Term> const& terms)
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-int WorldState::get_fluent(std::string const& key) const
+double WorldState::get_fluent(std::string const& key) const
 {
     auto it = m_fluents.find(key);
-    return (it != m_fluents.end()) ? it->second : 0;
+    return (it != m_fluents.end()) ? it->second : 0.0;
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-void WorldState::set_fluent(std::string const& key, int val)
+void WorldState::set_fluent(std::string const& key, double val)
 {
     m_fluents[key] = val;
 }
@@ -185,31 +136,31 @@ bool WorldState::evaluates(Predicate const& p) const
     {
         if (p.args.size() != 2)
             return false;
-        return eval_numeric(*this, p.args[0].name) >= eval_numeric(*this, p.args[1].name);
+        return eval_numeric(*this, p.args[0]) >= eval_numeric(*this, p.args[1]);
     }
     if (name == ">")
     {
         if (p.args.size() != 2)
             return false;
-        return eval_numeric(*this, p.args[0].name) > eval_numeric(*this, p.args[1].name);
+        return eval_numeric(*this, p.args[0]) > eval_numeric(*this, p.args[1]);
     }
     if (name == "<")
     {
         if (p.args.size() != 2)
             return false;
-        return eval_numeric(*this, p.args[0].name) < eval_numeric(*this, p.args[1].name);
+        return eval_numeric(*this, p.args[0]) < eval_numeric(*this, p.args[1]);
     }
     if (name == "<=")
     {
         if (p.args.size() != 2)
             return false;
-        return eval_numeric(*this, p.args[0].name) <= eval_numeric(*this, p.args[1].name);
+        return eval_numeric(*this, p.args[0]) <= eval_numeric(*this, p.args[1]);
     }
     if (name == "=")
     {
         if (p.args.size() != 2)
             return false;
-        return eval_numeric(*this, p.args[0].name) == eval_numeric(*this, p.args[1].name);
+        return eval_numeric(*this, p.args[0]) == eval_numeric(*this, p.args[1]);
     }
 
     return holds(name, to_names(p.args));
